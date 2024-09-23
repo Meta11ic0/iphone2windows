@@ -25,7 +25,7 @@ def get_child_shell_folder_with_display_name(parent_shell_folder, child_folder_n
 
 
 # returns a shell folder for a string path, e.g. "This PC\Apple iPhone\Internal Storage\DCIM"
-def get_shell_folder_from_absolute_display_name(display_names):
+def get_folder_shell_from_str(display_names):
     current_shell_folder = get_desktop_shell_folder()
     folders = display_names.split("\\")
     for folder in folders:
@@ -57,7 +57,7 @@ def walk_dcim(shell_folder):
     for file_pidl in shell_folder.EnumObjects(0, shellcon.SHCONTF_NONFOLDERS):
         sourcefolder_pidl = shell.SHGetIDListFromObject(shell_folder)
         sourcefile_shell_item = shell.SHCreateShellItem(sourcefolder_pidl, None, file_pidl)
-        sourcefile_name = get_absolute_name(sourcefile_shell_item)
+        sourcefile_name = get_file_full_path(sourcefile_shell_item)
         result[sourcefile_name] = sourcefile_shell_item
 
     return result
@@ -65,7 +65,7 @@ def walk_dcim(shell_folder):
 
 def copy_single_file(sourcefile_shell_item, destination_folder_shell_item, target_filename):
     print(
-        f"Copying '{get_absolute_name(sourcefile_shell_item)}' to '{get_absolute_name(destination_folder_shell_item)}'")
+        f"Copying '{get_file_full_path(sourcefile_shell_item)}' to '{get_file_full_path(destination_folder_shell_item)}'")
 
     pfo = pythoncom.CoCreateInstance(shell.CLSID_FileOperation,
                                      None,
@@ -81,8 +81,8 @@ def copy_multiple_files(copy_params_list: list[CopyParams]):
                                                      pythoncom.CLSCTX_ALL,
                                                      shell.IID_IFileOperation)
     for copy_params in copy_params_list:
-        src_str = get_absolute_name(copy_params.sourcefile_shell_item)
-        dst_str = get_absolute_name(copy_params.destinationFolder_shell_item)
+        src_str = get_file_full_path(copy_params.sourcefile_shell_item)
+        dst_str = get_file_full_path(copy_params.destinationFolder_shell_item)
         print(f"Queuing copying '{src_str}' to '{dst_str}'")
         fileOperationObject.CopyItem(copy_params.sourcefile_shell_item, copy_params.destinationFolder_shell_item,
                                      copy_params.target_filename)
@@ -90,7 +90,7 @@ def copy_multiple_files(copy_params_list: list[CopyParams]):
     fileOperationObject.PerformOperations()
 
 
-def get_absolute_name(shell_item):
+def get_file_full_path(shell_item):
     return shell_item.GetDisplayName(shellcon.SIGDN_DESKTOPABSOLUTEEDITING)
 
 
