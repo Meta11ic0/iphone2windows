@@ -2,11 +2,9 @@ import argparse
 import glob
 import os
 import pathlib
-from datetime import datetime
-
-from dataclasses import dataclass
-
 import pythoncom
+from datetime import datetime
+from dataclasses import dataclass
 from win32comext.shell import shell, shellcon
 
 
@@ -15,6 +13,7 @@ class CopyParams:
     file_shell: object
     destination_folder_shell: object
     desination_file_name: str
+
 
 # helper function
 def remove_prefix(str, prefix):
