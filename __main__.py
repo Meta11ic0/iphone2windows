@@ -4,15 +4,7 @@ import os
 import pathlib
 import pythoncom
 from datetime import datetime
-from dataclasses import dataclass
 from win32comext.shell import shell, shellcon
-
-
-@dataclass
-class CopyParams:
-    file_shell: object
-    destination_folder_shell: object
-    desination_file_name: str
 
 
 # helper function
@@ -26,7 +18,7 @@ def get_desktop_shell():
     return shell.SHGetDesktopFolder()
 
 
-def get_file_full_path(file_shell):
+def get_full_path(file_shell):
     return file_shell.GetDisplayName(shellcon.SIGDN_DESKTOPABSOLUTEEDITING)
 
 
@@ -71,24 +63,20 @@ def get_files_dict_from_shell(folder_shell):
     for file_pidl in folder_shell.EnumObjects(0, shellcon.SHCONTF_NONFOLDERS):
         file_directory_pidl = shell.SHGetIDListFromObject(folder_shell)
         file_shell = shell.SHCreateShellItem(file_directory_pidl, None, file_pidl)
-        file_full_path_str = get_file_full_path(file_shell)
+        file_full_path_str = get_full_path(file_shell)
         result[file_full_path_str] = file_shell
     return result
 
 
-def copy_multiple_files(copy_params_list: list[CopyParams]):
-    fileOperationObject = pythoncom.CoCreateInstance(shell.CLSID_FileOperation,
-                                                     None,
-                                                     pythoncom.CLSCTX_ALL,
-                                                     shell.IID_IFileOperation)
-    for copy_params in copy_params_list:
-        src_str = get_file_full_path(copy_params.source_file_shell)
-        dst_str = get_file_full_path(copy_params.destination_folder_shell)
-        print(f"Queuing copying '{src_str}' to '{dst_str}'")
-        fileOperationObject.CopyItem(copy_params.source_file_shell, copy_params.destination_folder_shell,
-                                     copy_params.desination_file_name)
-    print(f"Running copy operations...")
-    fileOperationObject.PerformOperations()
+def copy_file(source_file_shell, destination_folder_shell, desination_file_name):
+    print(f"Copying '{get_full_path(source_file_shell)}' to '{get_full_path(destination_folder_shell)}'")
+
+    file_operation_object = pythoncom.CoCreateInstance(shell.CLSID_FileOperation,
+                                     None,
+                                     pythoncom.CLSCTX_ALL,
+                                     shell.IID_IFileOperation)
+    file_operation_object.CopyItem(source_file_shell, destination_folder_shell, desination_file_name)
+    file_operation_object.PerformOperations()
 
 
 # get imported files from record 
@@ -119,7 +107,7 @@ def get_files_dict(source_folder_str, imported_files_set):
     all_files_dict = get_files_dict_from_shell(source_folder_shell)
     for path in sorted(all_files_dict.keys()):
         file_shell = all_files_dict[path]
-        full_path_str = get_file_full_path(file_shell)
+        full_path_str = get_full_path(file_shell)
         relative_path_str = remove_prefix(full_path_str, source_folder_str)
         relative_path_str = remove_prefix(relative_path_str, '\\')
         if relative_path_str not in imported_files_set:
@@ -130,7 +118,6 @@ def get_files_dict(source_folder_str, imported_files_set):
 # using windows shell to import
 def import_files(files_dict, destination_folder_str):
     destination_directorys_dict = {}
-    copy_params_list = []
     for file_relative_path_str in sorted(files_dict.keys()):
         desination_file_full_path_str = os.path.join(destination_folder_str, file_relative_path_str)
         desination_file_directory_str = os.path.dirname(desination_file_full_path_str)
@@ -141,10 +128,8 @@ def import_files(files_dict, destination_folder_str):
             destination_folder_shell = get_shell_from_str(desination_file_directory_str)
             destination_directorys_dict[desination_file_directory_str] = destination_folder_shell
         file_shell = files_dict[file_relative_path_str]
-        copy_params = CopyParams(file_shell, destination_directorys_dict[desination_file_directory_str],
-                                 desination_file_name)
-        copy_params_list.append(copy_params)
-    copy_multiple_files(copy_params_list)
+        copy_file(file_shell, destination_folder_shell, desination_file_name)
+ 
 
 # record imported files in this process  
 def write_record(record_folder, files_dict):
@@ -158,15 +143,13 @@ def write_record(record_folder, files_dict):
 
 def main(args):
     print(f"Program args: {args.__dict__}")
-    source_folder_str = args.source
-    destination_folder_str = args.destination
     imported_files_set = read_records(args.record_folder)
-    files_dict = get_files_dict(source_folder_str, imported_files_set)
+    files_dict = get_files_dict(args.source, imported_files_set)
     print(f"Import {len(files_dict)} files")
     if args.skip_copy:
         print(f"skip-copy mode, skipping copying")
     elif len(files_dict) > 0:
-        import_files(files_dict, destination_folder_str)
+        import_files(files_dict, args.destination)
         write_record(args.record_folder, files_dict)
     else:
         print(f"Nothing to copy")
