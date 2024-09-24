@@ -31,7 +31,7 @@ def read_records(record_folder):
 # value is windows shell of this file "IMG_1694.jpg" 
 def get_files_dict(folder_str):
     source_folder_shell = win32utils.get_folder_shell_from_str(folder_str)
-    files_dict = win32utils.walk_dcim(source_folder_shell)
+    files_dict = win32utils.get_files_dict_from_shell(source_folder_shell)
     return files_dict
 
 
@@ -42,47 +42,48 @@ def remove_prefix(str, prefix):
 
 
 # based on imported files which get from record
-# classify files into 'imported' and 'not imported' categories.
+# classify files into 'to import' and 'not import' categories.
 def classify_files(source_folder_str, files_dict, imported_files_set):
-    not_imported_files_set = set()
+    not_import_files_set = set()
     files_to_import_dict = {}
     for path in sorted(files_dict.keys()):
         file_shell = files_dict[path]
-        file_full_path_str = win32utils.get_file_full_path(file_shell)
-        file_relative_path_str = remove_prefix(file_full_path_str, source_folder_str)
-        file_relative_path_str = remove_prefix(file_relative_path_str, '\\')
-        if file_relative_path_str not in imported_files_set:
-            files_to_import_dict[file_relative_path_str] = file_shell
+        full_path_str = win32utils.get_file_full_path(file_shell)
+        relative_path_str = remove_prefix(full_path_str, source_folder_str)
+        relative_path_str = remove_prefix(relative_path_str, '\\')
+        if relative_path_str not in imported_files_set:
+            files_to_import_dict[relative_path_str] = file_shell
         else:
-            not_imported_files_set.add(file_relative_path_str)
-    return  not_imported_files_set, files_to_import_dict
+            not_import_files_set.add(relative_path_str)
+    return  not_import_files_set, files_to_import_dict
 
 
 # using windows shell to import
 def import_files(files_dict, destination_folder_str):
-    target_folder_shell_item_by_path = {}
+    destination_directorys_dict = {}
     copy_params_list = []
-    for desination_file_relative_path_str in sorted(files_dict.keys()):
-        desination_file_full_path_str = os.path.join(destination_folder_str, desination_file_relative_path_str)
-        desination_folder_str = os.path.dirname(desination_file_full_path_str)
-        desination_filesname = os.path.basename(desination_file_full_path_str)
-        if desination_folder_str not in target_folder_shell_item_by_path:
-            pathlib.Path(desination_folder_str).mkdir(parents=True, exist_ok=True)
-            target_folder_shell_item = win32utils.get_shell_item_from_path(desination_folder_str)
-            target_folder_shell_item_by_path[desination_folder_str] = target_folder_shell_item
-        file_shell = files_dict[desination_file_relative_path_str]
-        copy_params = CopyParams(file_shell, target_folder_shell_item_by_path[desination_folder_str],
-                                 desination_filesname)
+    for file_relative_path_str in sorted(files_dict.keys()):
+        desination_file_full_path_str = os.path.join(destination_folder_str, file_relative_path_str)
+        desination_file_directory_str = os.path.dirname(desination_file_full_path_str)
+        desination_file_name = os.path.basename(desination_file_full_path_str)
+        # if desination file directory not exits, build directory and mark
+        if desination_file_directory_str not in destination_directorys_dict:
+            pathlib.Path(desination_file_directory_str).mkdir(parents=True, exist_ok=True)
+            destination_folder_shell = win32utils.get_shell_item_from_path(desination_file_directory_str)
+            destination_directorys_dict[desination_file_directory_str] = destination_folder_shell
+        file_shell = files_dict[file_relative_path_str]
+        copy_params = CopyParams(file_shell, destination_directorys_dict[desination_file_directory_str],
+                                 desination_file_name)
         copy_params_list.append(copy_params)
     win32utils.copy_multiple_files(copy_params_list)
 
-
-def write_record(record_folder, files_path_set):
+# record imported files in this process  
+def write_record(record_folder, files_dict):
     time_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    imported_files_metadata_path = os.path.join(record_folder, f"imported_{time_str}.txt")
-    print(f"Writing '{imported_files_metadata_path}'")
-    with open(imported_files_metadata_path, "w") as files:
-        for file_name in sorted(list(files_path_set)):
+    recored_file = os.path.join(record_folder, f"record_{time_str}.txt")
+    print(f"Writing '{recored_file}'")
+    with open(recored_file, "w") as files:
+        for file_name in sorted(files_dict.keys()):
             files.write(f"{file_name}\n")
 
 

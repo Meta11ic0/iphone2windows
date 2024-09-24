@@ -6,9 +6,9 @@ from win32comext.shell import shell, shellcon
 
 @dataclass
 class CopyParams:
-    sourcefile_shell_item: object
-    destinationFolder_shell_item: object
-    target_filename: str
+    source_file_shell: object
+    destination_folder_shell: object
+    desination_file_name: str
 
 
 def get_desktop_shell_folder():
@@ -45,33 +45,33 @@ def get_shell_item_from_path(path):
 
 
 # returns a dictionary of (file name -> shell item) of files in shell folder
-def walk_dcim(shell_folder):
+def get_files_dict_from_shell(shell_folder):
     result = {}
 
     for folder_pidl in shell_folder.EnumObjects(0, shellcon.SHCONTF_FOLDERS):
         child_shell_folder = shell_folder.BindToObject(folder_pidl, None, shell.IID_IShellFolder)
         name = shell_folder.GetDisplayNameOf(folder_pidl, shellcon.SHGDN_FORADDRESSBAR)
         print(f"Listing folder '{name}'")
-        result |= walk_dcim(child_shell_folder)
+        result |= get_files_dict_from_shell(child_shell_folder)
 
     for file_pidl in shell_folder.EnumObjects(0, shellcon.SHCONTF_NONFOLDERS):
         sourcefolder_pidl = shell.SHGetIDListFromObject(shell_folder)
-        sourcefile_shell_item = shell.SHCreateShellItem(sourcefolder_pidl, None, file_pidl)
-        sourcefile_name = get_file_full_path(sourcefile_shell_item)
-        result[sourcefile_name] = sourcefile_shell_item
+        source_file_shell = shell.SHCreateShellItem(sourcefolder_pidl, None, file_pidl)
+        sourcefile_name = get_file_full_path(source_file_shell)
+        result[sourcefile_name] = source_file_shell
 
     return result
 
 
-def copy_single_file(sourcefile_shell_item, destination_folder_shell_item, target_filename):
+def copy_single_file(source_file_shell, destination_folder_shell_item, desination_file_name):
     print(
-        f"Copying '{get_file_full_path(sourcefile_shell_item)}' to '{get_file_full_path(destination_folder_shell_item)}'")
+        f"Copying '{get_file_full_path(source_file_shell)}' to '{get_file_full_path(destination_folder_shell_item)}'")
 
     pfo = pythoncom.CoCreateInstance(shell.CLSID_FileOperation,
                                      None,
                                      pythoncom.CLSCTX_ALL,
                                      shell.IID_IFileOperation)
-    pfo.CopyParams(sourcefile_shell_item, destination_folder_shell_item, target_filename)
+    pfo.CopyParams(source_file_shell, destination_folder_shell_item, desination_file_name)
     pfo.PerformOperations()
 
 
@@ -81,11 +81,11 @@ def copy_multiple_files(copy_params_list: list[CopyParams]):
                                                      pythoncom.CLSCTX_ALL,
                                                      shell.IID_IFileOperation)
     for copy_params in copy_params_list:
-        src_str = get_file_full_path(copy_params.sourcefile_shell_item)
-        dst_str = get_file_full_path(copy_params.destinationFolder_shell_item)
+        src_str = get_file_full_path(copy_params.source_file_shell)
+        dst_str = get_file_full_path(copy_params.destination_folder_shell)
         print(f"Queuing copying '{src_str}' to '{dst_str}'")
-        fileOperationObject.CopyItem(copy_params.sourcefile_shell_item, copy_params.destinationFolder_shell_item,
-                                     copy_params.target_filename)
+        fileOperationObject.CopyItem(copy_params.source_file_shell, copy_params.destination_folder_shell,
+                                     copy_params.desination_file_name)
     print(f"Running copy operations...")
     fileOperationObject.PerformOperations()
 
